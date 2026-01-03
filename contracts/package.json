@@ -1,0 +1,21 @@
+{
+  "name": "push-ninja-contracts",
+  "version": "1.0.0",
+  "description": "Push Ninja NFT Smart Contracts for Push Chain",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy:push": "hardhat run scripts/deploy.js --network pushDevnet",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "test": "hardhat test",
+    "clean": "hardhat clean"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.6.1",
+    "hardhat": "^2.19.0"
+  },
+  "dependencies": {
+    "ethers": "^6.10.0"
+  }
+}
