@@ -71,6 +71,26 @@ Open: http://localhost:3000
 - **Blockchain:** Push Chain Devnet, Solidity, Hardhat
 - **Database:** Supabase (PostgreSQL)
 
+## Deployment
+
+### Vercel (Frontend)
+
+1. Push code to GitHub
+2. Import project in Vercel
+3. Add environment variables (see `VERCEL-DEPLOYMENT.md`)
+4. Deploy
+
+**Important:** Add all `NEXT_PUBLIC_*` variables from `.env.production.example` to Vercel
+
+### Backend Deployment
+
+Deploy backend separately to:
+- Railway (recommended)
+- Render
+- Heroku
+
+See `VERCEL-DEPLOYMENT.md` for detailed instructions.
+
 ## Smart Contracts
 
 Deployed on Push Chain Devnet:
