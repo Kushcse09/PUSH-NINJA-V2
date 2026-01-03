@@ -105,14 +105,23 @@ Each minted NFT stores:
    
    Edit `.env.local` with your values.
 
-4. **Start development server**
+4. **Setup Supabase Database** (Required for multiplayer)
+   
+   Follow the instructions in `setup-supabase.md` to initialize your database:
+   - Go to your Supabase project SQL Editor
+   - Run `supabase/schema.sql`
+   - Run `supabase/migrations/add_multiplayer_columns.sql`
+   
+   This creates all necessary tables for multiplayer games, leaderboards, and player stats.
+
+5. **Start development server**
    ```bash
    npm run dev
    ```
    
    Open [http://localhost:3000](http://localhost:3000)
 
-5. **Start backend server** (for multiplayer)
+6. **Start backend server** (for multiplayer)
    ```bash
    cd backend
    npm install
