@@ -1,65 +1,68 @@
 # Push Ninja - Complete Setup Guide
 
-## Prerequisites
+## Quick Start (5 Minutes)
 
-- Node.js >= 18.0.0
-- Push Wallet
-- Supabase account
+### 1. Get Supabase API Keys
 
-## Quick Start
+Go to: https://supabase.com/dashboard/project/veesjjuhwxntvecggoks/settings/api
 
-### 1. Install Dependencies
+Copy these values:
+- **Project URL:** `https://veesjjuhwxntvecggoks.supabase.co`
+- **anon public key:** `sb_publishable_VrIdDSUN9ncrfmpvUAWzpg_1ILVLtSs`
+- **service_role key:** `sb_secret_eh8k2SpvO0qW5PJJ1C-5Aw_5UkDkYBd`
+
+### 2. Update Environment Files
+
+**Frontend (.env.local):**
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://veesjjuhwxntvecggoks.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_VrIdDSUN9ncrfmpvUAWzpg_1ILVLtSs
+```
+
+**Backend (backend/.env):**
+```bash
+SUPABASE_URL=https://veesjjuhwxntvecggoks.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_VrIdDSUN9ncrfmpvUAWzpg_1ILVLtSs
+SUPABASE_SERVICE_KEY=sb_secret_eh8k2SpvO0qW5PJJ1C-5Aw_5UkDkYBd
+```
+
+### 3. Create Database Tables
+
+**Go to SQL Editor:**
+https://supabase.com/dashboard/project/veesjjuhwxntvecggoks/sql/new
+
+**Copy and run:** `supabase/schema.sql` (entire file)
+
+This creates all tables, views, functions, and indexes.
+
+### 4. Install & Run
 
 ```bash
+# Install dependencies
 npm install
 cd backend && npm install && cd ..
-```
 
-### 2. Configure Environment
-
-Copy the example files:
-```bash
-cp .env.local.example .env.local
-cp backend/.env.example backend/.env
-```
-
-Edit `.env.local` and `backend/.env` with your Supabase credentials.
-
-### 3. Setup Supabase Database
-
-**Important:** Run the migration to add required columns:
-
-1. Go to: https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql
-2. Click "New Query"
-3. Copy and paste the contents of `supabase-migration-add-columns.sql`
-4. Click "Run"
-
-This adds columns for private rooms and forfeit tracking.
-
-### 4. Start the Application
-
-**Terminal 1 - Backend:**
-```bash
+# Terminal 1 - Backend
 cd backend
 npm run dev
-```
 
-**Terminal 2 - Frontend:**
-```bash
+# Terminal 2 - Frontend
 npm run dev
 ```
 
-Open http://localhost:3000
+Open: http://localhost:3000
+
+---
 
 ## Features
 
 - **Single Player** - Slice tokens, avoid bombs, build combos
-- **Multiplayer** - Compete in real-time with stakes
+- **Multiplayer** - Real-time competition with PUSH token stakes
   - Public rooms - Join random opponents
   - Private rooms - Create rooms with 6-character codes
-- **NFT Minting** - Mint your high scores as NFTs on Push Chain
+- **NFT Minting** - Mint high scores as NFTs on Push Chain
 - **Leaderboards** - Track top players and recent matches
-- **Real Transactions** - Uses Push Chain Devnet (testnet)
+- **Real Blockchain** - Push Chain Devnet (testnet)
 
 ## Tech Stack
 
