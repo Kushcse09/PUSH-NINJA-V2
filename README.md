@@ -7,198 +7,163 @@
 [![Push Chain](https://img.shields.io/badge/Push%20Chain-Devnet-blue)](https://push.org/)
 [![React](https://img.shields.io/badge/React-18.2.0-blue)](https://reactjs.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[![Live Demo](https://img.shields.io/badge/Demo-Live-green)](https://your-vercel-url.vercel.app)
+
+[Live Demo](https://your-vercel-url.vercel.app) • [Documentation](./SETUP.md) • [Report Bug](https://github.com/Kushcse09/PUSH-NINJA-V2/issues)
 
 </div>
 
 ---
 
-## About The Project
+## 🎮 About The Project
 
 Push Ninja is an interactive blockchain gaming experience that combines fast-paced token slicing gameplay with Web3 technology. Slash flying tokens, avoid bombs, and immortalize your achievements as NFTs on the Push Chain blockchain!
 
-### Key Features
+### ✨ Key Features
 
-- **Intuitive Slash Mechanics** - Slice fruits with mouse/touch gestures
-- **Strategic Gameplay** - Avoid bombs and maximize combos
-- **NFT Minting** - Mint your high scores as on-chain NFTs
-- **Wallet Integration** - Connect with Push Wallet
-- **Multiplayer Mode** - Compete against other players in real-time
-- **Staking System** - Stake PUSH tokens in multiplayer matches
-- **Achievement System** - Track stats, combos, and personal bests
-- **Real-time Scoring** - Dynamic point system with combo multipliers
-- **Responsive Design** - Play on desktop or mobile
-
----
-
-## Tech Stack
-
-### Frontend
-- **Next.js 14** - React framework
-- **React 18.2.0** - Modern UI library
-- **Push Chain SDK** - Blockchain interaction
-- **Socket.IO** - Real-time multiplayer
-- **CSS3** - Advanced animations and effects
-
-### Smart Contracts
-- **Solidity** - Smart contract language
-- **Hardhat** - Development environment
-- **Push Chain** - Layer 2 blockchain
-
-### Backend
-- **Node.js** - Server runtime
-- **Express** - REST API
-- **Socket.IO** - WebSocket connections
-- **Supabase** - Database and real-time subscriptions
+- 🎯 **Intuitive Slash Mechanics** - Slice tokens with mouse/touch gestures
+- 💣 **Strategic Gameplay** - Avoid bombs and maximize combos
+- 🎨 **NFT Minting** - Mint your high scores as on-chain NFTs
+- 👛 **Wallet Integration** - Connect with Push Wallet
+- 🎮 **Multiplayer Mode** - Compete against other players in real-time
+- 💰 **Staking System** - Stake PUSH tokens in multiplayer matches
+- 🏆 **Achievement System** - Track stats, combos, and personal bests
+- 📊 **Real-time Scoring** - Dynamic point system with combo multipliers
+- 📱 **Responsive Design** - Play on desktop or mobile
 
 ---
 
-## Game Mechanics
-
-### Scoring System
-- **Token Slice**: +10 points
-- **Combo Multiplier**: Score × combo count
-- **Bomb Penalty**: Lose a life
-
-### Multiplayer Mode
-- **Public Matches** - Join random opponents
-- **Private Matches** - Create rooms with codes
-- **Staking Tiers** - 4 PUSH token tiers (1, 5, 10, 25 PUSH)
-- **Prize Distribution** - Winner gets 98%, 2% platform fee
-
-### NFT Metadata
-Each minted NFT stores:
-- Final Score
-- Maximum Combo Achieved
-- Total Tokens Sliced
-- Bombs Hit
-- Game Duration
-- Timestamp
-
----
-
-## Installation
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Node.js >= 18.0.0
-- npm or yarn
-- Git
 - Push Wallet
+- Supabase account
 
-### Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/push-ninja.git
-   cd push-ninja
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment**
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Edit `.env.local` with your values.
-
-4. **Setup Supabase Database** (Required for multiplayer)
-   
-   Follow the instructions in `setup-supabase.md` to initialize your database:
-   - Go to your Supabase project SQL Editor
-   - Run `supabase/schema.sql`
-   - Run `supabase/migrations/add_multiplayer_columns.sql`
-   
-   This creates all necessary tables for multiplayer games, leaderboards, and player stats.
-
-5. **Start development server**
-   ```bash
-   npm run dev
-   ```
-   
-   Open [http://localhost:3000](http://localhost:3000)
-
-6. **Start backend server** (for multiplayer)
-   ```bash
-   cd backend
-   npm install
-   npm run dev
-   ```
-
----
-
-## How to Play
-
-1. **Connect Wallet**
-   - Click "Connect Wallet" button
-   - Connect with Push Wallet
-   - Approve connection
-
-2. **Start Game**
-   - Choose Single Player or Multiplayer
-   - Slash tokens, avoid bombs!
-
-3. **Build Combos**
-   - Slice multiple fruits rapidly
-   - Higher combos = higher scores
-   - Don't miss any tokens!
-
-4. **Mint NFT**
-   - After game ends, click "Mint Game NFT"
-   - Approve transaction in wallet
-   - Your achievement is on-chain forever!
-
----
-
-## Project Structure
-
-```
-push-ninja/
-├── public/              # Static assets
-├── src/
-│   ├── components/      # React components
-│   ├── hooks/           # Custom React hooks
-│   ├── services/        # Blockchain services
-│   └── ...
-├── pages/               # Next.js pages
-├── styles/              # CSS files
-├── contracts/           # Solidity smart contracts
-├── backend/             # Node.js backend server
-├── supabase/            # Database migrations
-└── README.md
-```
-
----
-
-## Deployment
-
-### Deploy to Vercel
+### Installation
 
 ```bash
-npm install -g vercel
-vercel login
-vercel --prod
+# Clone the repository
+git clone https://github.com/Kushcse09/PUSH-NINJA-V2.git
+cd PUSH-NINJA-V2
+
+# Install dependencies
+npm install
+cd backend && npm install && cd ..
+
+# Configure environment (see SETUP.md)
+cp .env.local.example .env.local
+cp backend/.env.example backend/.env
+
+# Setup Supabase database (run supabase/schema.sql)
+
+# Start development servers
+npm run dev          # Frontend (port 3000)
+cd backend && npm run dev  # Backend (port 3001)
 ```
+
+Open http://localhost:3000
+
+📖 **Full setup guide:** [SETUP.md](./SETUP.md)
 
 ---
 
-## Built With
+## 🎯 Game Modes
 
-| Technology | Purpose |
-|------------|---------|
-| [Next.js](https://nextjs.org/) | React framework |
-| [Push Chain](https://push.org/) | Blockchain platform |
-| [Socket.IO](https://socket.io/) | Real-time communication |
-| [Supabase](https://supabase.com/) | Database |
-| [Vercel](https://vercel.com/) | Hosting platform |
+### Single Player
+- Slice tokens, avoid bombs
+- Build combos for higher scores
+- Mint your achievements as NFTs
+
+### Multiplayer
+- **Public Rooms** - Join random opponents
+- **Private Rooms** - Create rooms with 6-character codes
+- **Staking Tiers** - 0.001, 0.005, 0.01, 0.05 PUSH tokens
+- **Prize Distribution** - Winner gets 98%, 2% platform fee
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technologies |
+|----------|-------------|
+| **Frontend** | Next.js 14, React 18, TypeScript |
+| **Backend** | Node.js, Express, Socket.IO |
+| **Blockchain** | Push Chain Devnet, Solidity, Hardhat, ethers.js |
+| **Database** | Supabase (PostgreSQL) |
+| **Deployment** | Vercel (Frontend), Railway/Render (Backend) |
+
+---
+
+## 📦 Smart Contracts
+
+Deployed on Push Chain Devnet:
+
+- **NFT Contract:** `0x7Da1841d68509BCd92A9bd98cc71E2F228cDc573`
+- **Network:** Push Chain Devnet (Chain ID: 42101)
+- **RPC:** https://evm.donut.rpc.push.org/
+- **Explorer:** https://donut.push.network
+
+---
+
+## 🎮 How to Play
+
+1. **Connect Wallet** - Click "Connect Wallet" and approve connection
+2. **Choose Mode** - Single Player or Multiplayer
+3. **Start Game** - Slash tokens, avoid bombs!
+4. **Build Combos** - Slice multiple tokens rapidly for higher scores
+5. **Mint NFT** - After game ends, mint your achievement as an NFT
+
+---
+
+## 📚 Documentation
+
+- [Setup Guide](./SETUP.md) - Complete installation and configuration
+- [Vercel Deployment](./VERCEL-DEPLOYMENT.md) - Deploy to production
+- [Code Review](./CODE-REVIEW.md) - Technical review and recommendations
+
+---
+
+## 🚢 Deployment
+
+### Frontend (Vercel)
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variables (see [VERCEL-DEPLOYMENT.md](./VERCEL-DEPLOYMENT.md))
+4. Deploy
+
+### Backend (Railway/Render)
+1. Deploy backend separately
+2. Update `NEXT_PUBLIC_API_BASE_URL` in Vercel
+3. Configure CORS for your domain
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
+## 📝 License
+
+MIT License - see LICENSE file for details
+
+---
+
+## 🔗 Links
+
+- **Live Demo:** [your-vercel-url.vercel.app](https://your-vercel-url.vercel.app)
+- **Push Chain:** [push.org](https://push.org/)
+- **Documentation:** [SETUP.md](./SETUP.md)
 
 ---
 
 <div align="center">
 
-**Push Ninja**
+**Built with ❤️ on Push Chain**
+
+[⭐ Star this repo](https://github.com/Kushcse09/PUSH-NINJA-V2) • [🐛 Report Bug](https://github.com/Kushcse09/PUSH-NINJA-V2/issues) • [💡 Request Feature](https://github.com/Kushcse09/PUSH-NINJA-V2/issues)
 
 </div>
