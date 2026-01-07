@@ -21,7 +21,8 @@ const MultiplayerLobby = ({ walletAddress, onStartGame, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
   const [joinCode, setJoinCode] = useState(''); // For entering private room code
-  const [createdRoomCode, setCreatedRoomCode] = useState(null); // Code shown after creating private room
+  const [createdRoomCode, setCreatedRoomCode] = useState(null);
+  const [activeGameToResume, setActiveGameToResume] = useState(null); // Code shown after creating private room
   const [stakingInProgress, setStakingInProgress] = useState(false); // Track staking transaction status
   const [joiningGameId, setJoiningGameId] = useState(null); // Track which game is being joined (for staking)
 
@@ -44,7 +45,37 @@ const MultiplayerLobby = ({ walletAddress, onStartGame, onBack }) => {
   // Force initial fetch on component mount
   useEffect(() => {
     fetchAvailableGames();
-  }, []);
+
+    // Check if we have an active or waiting game to resume/rejoin
+    const checkActiveGame = async () => {
+      if (!walletAddress) return;
+
+      const activeGame = await multiplayerService.findActiveOrWaitingGame(walletAddress);
+
+      if (activeGame) {
+        console.log(`🔄 Found active/waiting game: ${activeGame.game_id} (State: ${activeGame.state})`);
+
+        // If game is IN_PROGRESS (1), DO NOT auto-resume (user complaint)
+        // Instead, show a button/banner to resume if they want
+        if (activeGame.state === 1) {
+          console.log('⚠️ Active game found but auto-resume disabled per user request');
+          setActiveGameToResume(activeGame);
+        }
+        // If game is WAITING (0) and we created it, ensure we are in the room
+        else if (activeGame.state === 0 && multiplayerService.compareAddresses(activeGame.player1_address, walletAddress)) {
+          console.log(`🔄 Re-joining my waiting game room: ${activeGame.game_id}`);
+          socket.emit('join:game', { gameId: activeGame.game_id.toString(), playerAddress: walletAddress });
+
+          // Also re-emit ready state to ensure server knows we are waiting
+          setTimeout(() => {
+            socket.emit('game:playerReady', { gameId: activeGame.game_id.toString(), playerAddress: walletAddress });
+          }, 1000);
+        }
+      }
+    };
+
+    checkActiveGame();
+  }, [walletAddress]);
 
   // Listen for localStorage changes from other tabs
   useEffect(() => {
@@ -77,8 +108,17 @@ const MultiplayerLobby = ({ walletAddress, onStartGame, onBack }) => {
       // Check if this is YOUR game that was joined (you are player1)
       if (walletAddress && multiplayerService.compareAddresses(game.player1, walletAddress)) {
         showNotification('Opponent joined! Starting match...', 'success');
-        // Don't start locally - wait for synchronized countdown from server
-        // The joining player will trigger the countdown
+
+        // CRITICAL FIX: Ensure we are in the room so we receive the countdown
+        // This handles cases where user might have refreshed or reconnected
+        console.log('🔄 Re-joining game room to ensure countdown receipt');
+        socket.emit('join:game', { gameId: game.game_id.toString(), playerAddress: walletAddress });
+
+        // Also re-emit ready state to trigger server check
+        setTimeout(() => {
+          console.log('✅ Re-emitting player ready');
+          socket.emit('game:playerReady', { gameId: game.game_id.toString(), playerAddress: walletAddress });
+        }, 500);
       } else {
         fetchAvailableGames();
       }
@@ -410,6 +450,58 @@ const MultiplayerLobby = ({ walletAddress, onStartGame, onBack }) => {
       </div>
 
       <div className="lobby-content-wrapper">
+        {/* Resume Active Game Banner */}
+        {activeGameToResume && (
+          <div style={{
+            background: 'linear-gradient(90deg, #9B5DE5, #F15BB5)',
+            padding: '1rem',
+            borderRadius: '12px',
+            marginBottom: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            animation: 'slideDown 0.3s ease-out'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              <div>
+                <h4 style={{ margin: 0, color: 'white' }}>Active Match Found</h4>
+                <p style={{ margin: 0, color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem' }}>
+                  Game #{activeGameToResume.game_id} is in progress
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => {
+                  setActiveGameToResume(null);
+                }}
+                className="btn-secondary"
+                style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  onStartGame(activeGameToResume.game_id.toString());
+                }}
+                style={{
+                  padding: '0.5rem 1.5rem',
+                  background: 'white',
+                  color: '#9B5DE5',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                RESUME
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="lobby-tabs">
           <button

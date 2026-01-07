@@ -50,6 +50,28 @@ export default function Document() {
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <Main />
         <NextScript />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              // Suppress Push UI Kit errors
+              window.addEventListener('error', function(e) {
+                if (e.message && (e.message.includes('Station failed') || e.message.includes('name does not exist'))) {
+                  e.stopImmediatePropagation();
+                  e.preventDefault();
+                  return false;
+                }
+              });
+              
+              window.addEventListener('unhandledrejection', function(e) {
+                if (e.reason && e.reason.message && (e.reason.message.includes('Station failed') || e.reason.message.includes('name does not exist'))) {
+                  e.stopImmediatePropagation();
+                  e.preventDefault();
+                  return false;
+                }
+              });
+            `,
+          }}
+        />
       </body>
     </Html>
   );

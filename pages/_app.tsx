@@ -1,5 +1,5 @@
 import type { AppProps } from 'next/app';
-import { PushUniversalWalletProvider, PushUI } from '@pushchain/ui-kit';
+import dynamic from 'next/dynamic';
 import '../styles/index.css';
 import '../styles/App.css';
 import '../styles/design-system.css';
@@ -17,20 +17,21 @@ import '../src/components/ResultsScreen.css';
 import '../styles/results-screen.css';
 import '../src/components/TierDisplay.css';
 
-
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@vercel/analytics/react';
 
+// Dynamically import PushUniversalWalletProvider to avoid SSR issues
+const PushWalletProviderWrapper = dynamic(
+  () => import('../src/components/PushWalletProviderWrapper'),
+  { ssr: false }
+);
+
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <PushUniversalWalletProvider
-      config={{
-        network: PushUI.CONSTANTS.PUSH_NETWORK.TESTNET,
-      }}
-    >
+    <PushWalletProviderWrapper>
       <Component {...pageProps} />
       <SpeedInsights />
       <Analytics />
-    </PushUniversalWalletProvider>
+    </PushWalletProviderWrapper>
   );
 }

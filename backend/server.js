@@ -2,12 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import { rateLimit } from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import gamesRouter from './routes/games.js';
 import playersRouter from './routes/players.js';
-import { supabase } from './config/supabase.js';
+import { supabase, supabaseAdmin } from './config/supabase.js';
+import escrowService from './services/escrowService.js';
+import { validateGameInput, validateScoreSubmission, sanitizeRoomCode, isValidLives } from './utils/validation.js';
+import { validateSocketEvent, createSocketRateLimiter } from './middleware/socketValidation.js';
 
 
 dotenv.config();
@@ -27,6 +31,9 @@ const io = new Server(httpServer, {
     credentials: true
   }
 });
+
+// Apply rate limiting to Socket.IO connections
+io.use(createSocketRateLimiter(10, 1000)); // 10 events per second per client
 
 const PORT = process.env.PORT || 5000;
 
@@ -49,12 +56,21 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// REST API rate limiting - prevent DoS attacks
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per 15 minutes
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Make io accessible globally for routes
 global.io = io;
 
-// Routes
-app.use('/api/games', gamesRouter);
-app.use('/api/players', playersRouter);
+// Routes with rate limiting
+app.use('/api/games', apiLimiter, gamesRouter);
+app.use('/api/players', apiLimiter, playersRouter);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -82,10 +98,14 @@ const disconnectTimers = new Map(); // socketId -> { gameId, timer, playerAddres
 const roomCodeMap = new Map(); // roomCode -> { gameId, createdAt, creatorAddress }
 const playerReadyMap = new Map(); // gameId -> Set of ready player addresses (for staking confirmation)
 const DISCONNECT_GRACE_PERIOD_MS = 5000; // 5 seconds
-const ROOM_CODE_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+const ROOM_CODE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes (reduced from 30 to prevent memory buildup)
+
+// Store interval references for cleanup on shutdown
+let roomCodeCleanupInterval = null;
+let staleGameCleanupInterval = null;
 
 // Clean up expired room codes periodically
-setInterval(() => {
+roomCodeCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [code, data] of roomCodeMap.entries()) {
     if (now - data.createdAt > ROOM_CODE_EXPIRY_MS) {
@@ -97,12 +117,12 @@ setInterval(() => {
 
 // Clean up stale games (waiting for > 100 seconds without anyone joining)
 const STALE_GAME_TIMEOUT_MS = 100 * 1000; // 100 seconds
-setInterval(async () => {
+staleGameCleanupInterval = setInterval(async () => {
   try {
     const cutoffTime = new Date(Date.now() - STALE_GAME_TIMEOUT_MS).toISOString();
 
     // Cancel all games in WAITING state that are older than the cutoff
-    const { data: staleGames, error: findError } = await supabase
+    const { data: staleGames, error: findError } = await supabaseAdmin
       .from('games')
       .select('game_id, created_at')
       .eq('state', 0) // WAITING state
@@ -116,7 +136,7 @@ setInterval(async () => {
     if (staleGames && staleGames.length > 0) {
       const gameIds = staleGames.map(g => g.game_id);
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('games')
         .update({
           state: 3, // CANCELLED
@@ -137,6 +157,43 @@ setInterval(async () => {
     console.error('Error in stale game cleanup:', error);
   }
 }, 30000); // Check every 30 seconds
+
+// Clean up stuck games on server startup
+(async () => {
+  try {
+    console.log('🧹 Checking for stuck games on startup...');
+
+    // Cancel all games in IN_PROGRESS state (state = 1)
+    const { data: stuckGames, error: findError } = await supabaseAdmin
+      .from('games')
+      .select('game_id, state')
+      .eq('state', 1); // IN_PROGRESS state
+
+    if (findError) {
+      console.error('Error finding stuck games:', findError);
+    } else if (stuckGames && stuckGames.length > 0) {
+      const gameIds = stuckGames.map(g => g.game_id);
+
+      const { error: updateError } = await supabaseAdmin
+        .from('games')
+        .update({
+          state: 3, // CANCELLED
+          finished_at: new Date().toISOString()
+        })
+        .in('game_id', gameIds);
+
+      if (updateError) {
+        console.error('Error cancelling stuck games:', updateError);
+      } else {
+        console.log(`🧹 Cancelled ${stuckGames.length} stuck games: ${gameIds.join(', ')}`);
+      }
+    } else {
+      console.log('✅ No stuck games found');
+    }
+  } catch (error) {
+    console.error('Error in startup cleanup:', error);
+  }
+})();
 
 io.on('connection', (socket) => {
   console.log('👤 Client connected:', socket.id);
@@ -181,55 +238,68 @@ io.on('connection', (socket) => {
   });
 
   // Handle player ready event (after staking is confirmed)
-  socket.on('game:playerReady', async ({ gameId, playerAddress }) => {
-    // Normalize gameId to string for consistent map key
-    const gameIdStr = gameId.toString();
-    console.log(`✅ Player ${playerAddress.slice(0, 8)}... is ready in game ${gameIdStr}`);
+  socket.on('game:playerReady', validateSocketEvent(
+    validateGameInput,
+    async ({ gameId, playerAddress }) => {
+      // gameId and playerAddress are now validated and normalized
+      const gameIdStr = gameId.toString();
+      console.log(`✅ Player ${playerAddress.slice(0, 8)}... is ready in game ${gameIdStr}`);
 
-    // Track this player as ready
-    if (!playerReadyMap.has(gameIdStr)) {
-      playerReadyMap.set(gameIdStr, new Set());
-    }
-    const readyPlayers = playerReadyMap.get(gameIdStr);
-    readyPlayers.add(playerAddress.toLowerCase());
-
-    console.log(`📋 Ready players for game ${gameIdStr}:`, Array.from(readyPlayers));
-
-    // Check if both players are now ready
-    try {
-      const { data: game, error } = await supabase
-        .from('games')
-        .select('player1_address, player2_address, state')
-        .eq('game_id', parseInt(gameIdStr))
-        .single();
-
-      if (error) {
-        console.error(`❌ Failed to fetch game ${gameIdStr}:`, error);
-        return;
+      // Track this player as ready
+      if (!playerReadyMap.has(gameIdStr)) {
+        playerReadyMap.set(gameIdStr, new Set());
       }
+      const readyPlayers = playerReadyMap.get(gameIdStr);
+      readyPlayers.add(playerAddress); // Already lowercase from validation
 
-      console.log(`📊 Game ${gameIdStr} state: ${game?.state}, P1: ${game?.player1_address?.slice(0, 8)}, P2: ${game?.player2_address?.slice(0, 8) || 'none'}`);
+      console.log(`📋 Ready players for game ${gameIdStr}:`, Array.from(readyPlayers));
 
-      if (game && game.state === 1 && game.player1_address && game.player2_address) {
-        const player1Ready = readyPlayers.has(game.player1_address.toLowerCase());
-        const player2Ready = readyPlayers.has(game.player2_address.toLowerCase());
+      // Check if both players are now ready
+      try {
+        const { data: game, error } = await supabaseAdmin
+          .from('games')
+          .select('player1_address, player2_address, state')
+          .eq('game_id', gameId)
+          .single();
 
-        console.log(`🎮 Game ${gameIdStr} readiness: P1=${player1Ready}, P2=${player2Ready}`);
-
-        if (player1Ready && player2Ready) {
-          console.log(`⏰ Both players ready! Starting countdown for game ${gameIdStr}`);
-          io.to(`game:${gameIdStr}`).emit('countdown:start', { gameId: gameIdStr, startTime: Date.now() + 500 });
-
-          // Clean up the ready map for this game
-          playerReadyMap.delete(gameIdStr);
+        if (error) {
+          console.error(`❌ Failed to fetch game ${gameIdStr}:`, error);
+          return;
         }
-      } else if (game && game.state === 0) {
-        console.log(`⏳ Game ${gameIdStr} still waiting for second player to join (state=0)`);
+
+        console.log(`📊 Game ${gameIdStr} state: ${game?.state}, P1: ${game?.player1_address?.slice(0, 8)}, P2: ${game?.player2_address?.slice(0, 8) || 'none'}`);
+
+        if (game && game.state === 1 && game.player1_address && game.player2_address) {
+          const player1Ready = readyPlayers.has(game.player1_address.toLowerCase());
+          const player2Ready = readyPlayers.has(game.player2_address.toLowerCase());
+
+          console.log(`🎮 Game ${gameIdStr} readiness: P1=${player1Ready}, P2=${player2Ready}`);
+
+          if (player1Ready && player2Ready) {
+            console.log(`⏰ Both players ready! Starting countdown for game ${gameIdStr}`);
+
+            // Clean up room code for this game (prevent memory leak)
+            for (const [code, data] of roomCodeMap.entries()) {
+              if (data.gameId.toString() === gameIdStr) {
+                roomCodeMap.delete(code);
+                console.log(`🗑️ Deleted room code ${code} (game starting)`);
+                break;
+              }
+            }
+
+            io.to(`game:${gameIdStr}`).emit('countdown:start', { gameId: gameIdStr, startTime: Date.now() + 500 });
+
+            // Clean up the ready map for this game
+            playerReadyMap.delete(gameIdStr);
+          }
+        } else if (game && game.state === 0) {
+          console.log(`⏳ Game ${gameIdStr} still waiting for second player to join (state=0)`);
+        }
+      } catch (error) {
+        console.error('Error checking player readiness:', error);
       }
-    } catch (error) {
-      console.error('Error checking player readiness:', error);
     }
-  });
+  ));
 
 
   // Handle start countdown sync (fallback for legacy behavior)
@@ -250,25 +320,33 @@ io.on('connection', (socket) => {
   });
 
   // Handle player elimination (lost all 3 lives) - ends game immediately for both players
-  socket.on('game:playerEliminated', async ({ gameId, playerAddress, finalScore }) => {
-    console.log(`💀 Player ${playerAddress.slice(0, 8)}... eliminated in game ${gameId} with score ${finalScore}`);
+  socket.on('game:playerEliminated', validateSocketEvent(
+    validateScoreSubmission,
+    async ({ gameId, playerAddress, score: finalScore }) => {
+      console.log(`💀 Player ${playerAddress.slice(0, 8)}... eliminated in game ${gameId} with score ${finalScore}`);
 
-    // Broadcast to all players in the game that someone was eliminated
-    io.to(`game:${gameId}`).emit('game:playerEliminated', {
-      eliminatedPlayer: playerAddress,
-      finalScore
-    });
+      // Broadcast to all players in the game that someone was eliminated
+      io.to(`game:${gameId}`).emit('game:playerEliminated', {
+        eliminatedPlayer: playerAddress,
+        finalScore
+      });
 
-    // Update game state in database with scores
-    try {
-      const { data: game } = await supabase
-        .from('games')
-        .select('*')
-        .eq('game_id', gameId)
-        .single();
+      // Update game state in database with scores - USE RACE CONDITION PROTECTION
+      try {
+        // First, fetch current game state
+        const { data: game, error: fetchError } = await supabase
+          .from('games')
+          .select('*')
+          .eq('game_id', gameId)
+          .eq('state', 1) // Only get if still IN_PROGRESS
+          .single();
 
-      if (game && game.state === 1) { // IN_PROGRESS
-        const isPlayer1Eliminated = game.player1_address.toLowerCase() === playerAddress.toLowerCase();
+        if (fetchError || !game) {
+          console.log(`⚠️ Game ${gameId} not found or already finished - skipping elimination`);
+          return;
+        }
+
+        const isPlayer1Eliminated = game.player1_address.toLowerCase() === playerAddress;
         const winnerAddress = isPlayer1Eliminated ? game.player2_address : game.player1_address;
 
         // Build update object with the eliminated player's score
@@ -288,23 +366,60 @@ io.on('connection', (socket) => {
           updateData.player2_finished = true;
         }
 
-        await supabase
+        // Update with state check to prevent race condition
+        const { data: updated, error: updateError } = await supabase
           .from('games')
           .update(updateData)
-          .eq('game_id', gameId);
+          .eq('game_id', gameId)
+          .eq('state', 1) // Only update if still IN_PROGRESS
+          .select()
+          .single();
+
+        if (updateError || !updated) {
+          console.log(`⚠️ Game ${gameId} was already finished by another process - skipping`);
+          return;
+        }
 
         console.log(`🏆 Game ${gameId} finished - Winner: ${winnerAddress.slice(0, 8)}... (opponent eliminated with score ${finalScore})`);
+
+        // Calculate scores and distribute prize
+        const loserScore = finalScore;
+        const player1Score = isPlayer1Eliminated ? loserScore : 0;
+        const player2Score = isPlayer1Eliminated ? 0 : loserScore;
+
+        const prizeResult = await escrowService.finishGame(
+          gameId,
+          winnerAddress,
+          player1Score,
+          player2Score,
+          'elimination'
+        );
+
+        if (prizeResult.success) {
+          console.log(`💰 Prize distributed on-chain: ${prizeResult.txHash}`);
+
+          // Save payout tx hash to database
+          await supabase.from('games').update({ finish_tx_hash: prizeResult.txHash }).eq('game_id', gameId);
+
+          // Broadcast transaction hash to both players
+          io.to(`game:${gameId}`).emit('game:prizeDistributed', {
+            txHash: prizeResult.txHash,
+            winner: winnerAddress
+          });
+        } else {
+          console.error(`❌ Prize distribution failed: ${prizeResult.error}`);
+        }
 
         // Request the winner to submit their final score for stats tracking
         io.to(`game:${gameId}`).emit('game:requestFinalScore', {
           gameId,
           winnerAddress
         });
+      } catch (error) {
+        console.error('Failed to update game after elimination:', error);
       }
-    } catch (error) {
-      console.error('Failed to update game after elimination:', error);
     }
-  });
+  ));
 
   // Handle winner's final score submission after elimination
   socket.on('game:submitWinnerScore', async ({ gameId, playerAddress, finalScore }) => {
@@ -435,6 +550,24 @@ io.on('connection', (socket) => {
             });
 
             console.log(`🏳️ Game ${gameId} forfeited due to disconnect. Winner: ${winnerAddress}`);
+
+            // Distribute prize for forfeit (winner gets 98%, forfeit penalty applies if configured)
+            const forfeitResult = await escrowService.forfeitGame(gameId, playerAddress);
+
+            if (forfeitResult.success) {
+              console.log(`💰 Forfeit prize distributed on-chain: ${forfeitResult.txHash}`);
+
+              // Save payout tx hash to database
+              await supabase.from('games').update({ finish_tx_hash: forfeitResult.txHash }).eq('game_id', gameId);
+
+              // Notify remaining player of prize distribution
+              io.to(`game:${gameId}`).emit('game:prizeDistributed', {
+                txHash: forfeitResult.txHash,
+                winner: winnerAddress
+              });
+            } else {
+              console.error(`❌ Forfeit prize distribution failed: ${forfeitResult.error}`);
+            }
           }
         } catch (error) {
           console.error('Failed to process forfeit:', error);
@@ -495,7 +628,8 @@ httpServer.listen(PORT, () => {
   console.log(`🌐 API: http://localhost:${PORT}`);
   console.log(`🔌 WebSocket: http://localhost:${PORT}`);
   console.log(`🎯 Frontend: ${process.env.FRONTEND_URL}`);
-  console.log(`🔗 Contract: ${process.env.CONTRACT_ADDRESS}`);
+  console.log(`🔗 Contract: ${process.env.ESCROW_CONTRACT_ADDRESS || 'None'}`);
+  console.log(`💰 Escrow Service: ${escrowService.isReady() ? 'Ready ✅' : 'Disabled ❌'}`);
   console.log('================================');
   console.log('');
 });
@@ -503,6 +637,22 @@ httpServer.listen(PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM received, shutting down gracefully...');
+
+  // Clear background timers
+  if (roomCodeCleanupInterval) {
+    clearInterval(roomCodeCleanupInterval);
+    console.log('🧹 Cleared room code cleanup interval');
+  }
+  if (staleGameCleanupInterval) {
+    clearInterval(staleGameCleanupInterval);
+    console.log('🧹 Cleared stale game cleanup interval');
+  }
+
+  // Close socket connections
+  io.close(() => {
+    console.log('🔌 Socket.IO closed');
+  });
+
   httpServer.close(() => {
     console.log('✅ Server closed');
     process.exit(0);

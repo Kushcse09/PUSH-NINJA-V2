@@ -268,6 +268,33 @@ class SupabaseGameService {
       return { success: false, error: (error as Error).message };
     }
   }
+
+  /**
+   * Find an active or waiting game for a player
+   */
+  async findActiveOrWaitingGame(playerAddress: string): Promise<Game | null> {
+    if (!isSupabaseConfigured() || !supabase) return null;
+
+    try {
+      const address = playerAddress.toLowerCase();
+      // Using raw query for OR condition across columns
+      const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .or(`player1_address.eq.${address},player2_address.eq.${address}`)
+        .in('state', [GAME_STATE.WAITING, GAME_STATE.IN_PROGRESS])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(); // Use maybeSingle to avoid error on no rows
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Failed to find active game:', error);
+      return null;
+    }
+  }
+
   /**
    * Get available games (waiting for opponent) - only public rooms, max 100 seconds old
    */

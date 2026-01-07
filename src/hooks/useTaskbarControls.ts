@@ -17,17 +17,23 @@ export const useTaskbarControls = (
   const handleKeyPress = useCallback(
     (event: KeyboardEvent): void => {
       if (gameState.screen !== 'game' || !gameState.isGameRunning) return;
+      
+      // Disable pause in multiplayer games
+      if (gameState.isMultiplayer) return;
 
       if (event.code === 'Space' || event.key.toLowerCase() === 'p') {
         event.preventDefault();
         onTogglePause();
       }
     },
-    [gameState.screen, gameState.isGameRunning, onTogglePause]
+    [gameState.screen, gameState.isGameRunning, gameState.isMultiplayer, onTogglePause]
   );
 
   const handleVisibilityChange = useCallback((): void => {
     if (typeof document === 'undefined') return;
+    
+    // Disable auto-pause in multiplayer games
+    if (gameState.isMultiplayer) return;
     
     if (
       document.hidden &&
@@ -37,9 +43,12 @@ export const useTaskbarControls = (
     ) {
       onTogglePause();
     }
-  }, [gameState.screen, gameState.isGameRunning, gameState.isPaused, onTogglePause]);
+  }, [gameState.screen, gameState.isGameRunning, gameState.isPaused, gameState.isMultiplayer, onTogglePause]);
 
   const handleWindowBlur = useCallback((): void => {
+    // Disable auto-pause in multiplayer games
+    if (gameState.isMultiplayer) return;
+    
     if (
       gameState.screen === 'game' &&
       gameState.isGameRunning &&
@@ -47,7 +56,7 @@ export const useTaskbarControls = (
     ) {
       onTogglePause();
     }
-  }, [gameState.screen, gameState.isGameRunning, gameState.isPaused, onTogglePause]);
+  }, [gameState.screen, gameState.isGameRunning, gameState.isPaused, gameState.isMultiplayer, onTogglePause]);
 
   useEffect(() => {
     if (typeof document === 'undefined' || typeof window === 'undefined') return;

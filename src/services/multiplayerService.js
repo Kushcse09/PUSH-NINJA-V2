@@ -1,6 +1,9 @@
 // Push Chain Multiplayer Service with Supabase
 import supabaseGameService from './supabaseGameService';
+import { pushChainService } from './pushChainService';
 import { io } from 'socket.io-client';
+
+console.log('DEBUG: pushChainService imported in multiplayerService:', !!pushChainService);
 
 // Use environment variable or fallback to localhost
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
@@ -241,20 +244,20 @@ class MultiplayerGameService {
         throw new Error('Invalid bet tier');
       }
 
-      console.log(`💰 Initiating stake of ${tierInfo.amount} PUSH for creating game ${gameId}`);
+      console.log(`💰 Staking ${tierInfo.amount} PUSH (${tierInfo.wei} wei) for creating game ${gameId}`);
 
-      // Import pushChainService dynamically to avoid circular dependencies
-      const pushChainService = (await import('./pushChainService')).default;
+      // Sync wallet address to Push Chain service
       pushChainService.setWallet(walletAddress);
 
-      // Call the staking function (uses createGame on escrow if deployed)
+      // Call Push Chain service to stake tokens
       const result = await pushChainService.stakeTokens(tierInfo.wei, gameId.toString());
 
       if (!result.success) {
-        return { success: false, error: result.error };
+        throw new Error(result.error || 'Staking failed');
       }
 
       console.log(`✅ Stake successful! TX: ${result.transactionHash}`);
+
       return {
         success: true,
         transactionHash: result.transactionHash,
@@ -277,20 +280,20 @@ class MultiplayerGameService {
         throw new Error('Invalid bet tier');
       }
 
-      console.log(`💰 Initiating stake of ${tierInfo.amount} PUSH for joining game ${gameId}`);
+      console.log(`💰 Staking ${tierInfo.amount} PUSH (${tierInfo.wei} wei) for joining game ${gameId}`);
 
-      // Import pushChainService dynamically to avoid circular dependencies
-      const pushChainService = (await import('./pushChainService')).default;
+      // Sync wallet address to Push Chain service
       pushChainService.setWallet(walletAddress);
 
-      // Call joinGameOnChain (uses joinGame on escrow if deployed, otherwise fallback)
-      const result = await pushChainService.joinGameOnChain(tierInfo.wei, gameId.toString());
+      // Call Push Chain service to stake tokens
+      const result = await pushChainService.stakeTokens(tierInfo.wei, gameId.toString());
 
       if (!result.success) {
-        return { success: false, error: result.error };
+        throw new Error(result.error || 'Staking failed');
       }
 
       console.log(`✅ Join stake successful! TX: ${result.transactionHash}`);
+
       return {
         success: true,
         transactionHash: result.transactionHash,
@@ -593,6 +596,15 @@ class MultiplayerGameService {
       return await supabaseGameService.getGame(parseInt(gameId));
     } catch (error) {
       console.error('Failed to get game:', error);
+      return null;
+    }
+  }
+
+  async findActiveOrWaitingGame(address) {
+    try {
+      return await supabaseGameService.findActiveOrWaitingGame(address);
+    } catch (error) {
+      console.error('Failed to find active game:', error);
       return null;
     }
   }

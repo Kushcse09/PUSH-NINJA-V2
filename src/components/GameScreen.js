@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
+import multiplayerService from '../services/multiplayerService';
 import { useGameLoop } from '../hooks/useGameLoop';
 import { useSlashDetection } from '../hooks/useSlashDetection';
 import { useBladeTrail } from '../hooks/useBladeTrail';
@@ -41,6 +42,8 @@ const GameScreen = ({
   const [opponentLives, setOpponentLives] = useState(3);
   const [gameEnded, setGameEnded] = useState(false);
   const [eliminationMessage, setEliminationMessage] = useState(null);
+  const [disconnectTimer, setDisconnectTimer] = useState(null); // For counting down 5s
+  const [opponentDisconnected, setOpponentDisconnected] = useState(false);
 
   const { popups, addPopup, removePopup, clearAllPopups } = usePointPopups();
   const {
@@ -99,11 +102,101 @@ const GameScreen = ({
       }
     });
 
+    // Handle opponent disconnect (start 5s timer visual)
+    socket.on('opponent:disconnected', ({ gracePeriodMs }) => {
+      console.log('⚠️ Opponent disconnected, starting timer...');
+      setOpponentDisconnected(true);
+      setDisconnectTimer(5); // Start at 5 seconds
+
+      // Auto-pause game if running
+      if (gameState.isGameRunning && !gameState.isPaused) {
+        onTogglePause();
+      }
+    });
+
+    // Handle opponent reconnect (cancel timer)
+    socket.on('opponent:reconnected', () => {
+      console.log('✅ Opponent reconnected!');
+      setOpponentDisconnected(false);
+      setDisconnectTimer(null);
+
+      // Auto-resume game if it was paused by us
+      if (gameState.isGameRunning && gameState.isPaused) {
+        onTogglePause();
+      }
+    });
+
+    // Handle explicit forfeit signal from server
+    socket.on('game:forfeited', ({ forfeitedBy, winner }) => {
+      const myAddress = pushWallet.walletAddress?.toLowerCase();
+      const isWinner = winner?.toLowerCase() === myAddress;
+
+      console.log(`🏁 Game forfeited by ${forfeitedBy}. You win? ${isWinner}`);
+
+      setGameEnded(true);
+      setEliminationMessage(isWinner ? '🏆 YOU WIN!' : 'OPPONENT FORFEITED');
+      setOpponentDisconnected(false); // Clear overlay
+
+      setTimeout(() => {
+        onEndGame();
+      }, 1500);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [multiplayerGameId, pushWallet?.walletAddress, onEndGame]);
+  }, [multiplayerGameId, pushWallet?.walletAddress, onEndGame, gameState.isGameRunning, gameState.isPaused, onTogglePause]);
+
+  // Countdown effect for disconnect timer
+  useEffect(() => {
+    if (!disconnectTimer) return;
+
+    const interval = setInterval(() => {
+      setDisconnectTimer(prev => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [disconnectTimer]);
+
+  // SAFETY NET: Poll for game status in case socket event is missed
+  useEffect(() => {
+    if (!multiplayerGameId || gameEnded) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const game = await multiplayerService.getGame(multiplayerGameId);
+        // If game is marked as FINISHED (2), CANCELLED (3), or FORFEITED (4)
+        if (game && (game.state >= 2)) {
+          console.log(`🔄 Game finished status detected via polling (State: ${game.state})`);
+
+          setGameEnded(true);
+
+          const myAddress = pushWallet?.walletAddress?.toLowerCase();
+          const winner = game.winner_address?.toLowerCase();
+          const isWinner = winner === myAddress;
+
+          let msg = 'GAME ENDED';
+          if (game.state === 4) msg = 'OPPONENT FORFEITED!'; // Forfeit
+          else if (winner) msg = isWinner ? '🏆 YOU WIN!' : '💀 GAME OVER';
+
+          setEliminationMessage(msg);
+
+          // Force end game
+          setTimeout(() => {
+            onEndGame();
+          }, 1500);
+        }
+      } catch (error) {
+        console.error('Error polling game status:', error);
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [multiplayerGameId, gameEnded, onEndGame, pushWallet]);
 
   // Emit lives update when lives change in multiplayer
   useEffect(() => {
@@ -474,7 +567,50 @@ const GameScreen = ({
         </div>
       )}
 
-      {/* Top UI Layout: Score on left, Lives on right */}
+      {/* Opponent Disconnect Overlay */}
+      {opponentDisconnected && !gameEnded && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.3s ease-out'
+        }}>
+          <div style={{
+            fontSize: '2rem',
+            color: '#FFD700',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
+          }}>
+            OPPONENT DISCONNECTED
+          </div>
+          <div style={{
+            fontSize: '1.2rem',
+            color: 'white',
+            marginBottom: '2rem'
+          }}>
+            Auto-win in...
+          </div>
+          <div style={{
+            fontSize: '5rem',
+            fontWeight: 900,
+            color: disconnectTimer <= 2 ? '#00D9A5' : '#FFFFFF',
+            animation: 'pulse 1s infinite'
+          }}>
+            {disconnectTimer}s
+          </div>
+        </div>
+      )}
+
       {/* Top UI Layout: Score on left, Lives on right */}
       <div style={{
         position: 'absolute',
@@ -804,8 +940,8 @@ const GameScreen = ({
         onRemoveNotification={removeMissedNotification} 
       /> */}
 
-      {/* Pause Menu Overlay - Only for single player */}
-      {gameState.isPaused && !multiplayerGameId && (
+      {/* Pause Menu Overlay - Only for single player and when game is running */}
+      {gameState.isPaused && !multiplayerGameId && gameState.isGameRunning && (
         <div style={{
           position: 'fixed',
           top: 0,

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { PushUniversalAccountButton } from '@pushchain/ui-kit';
+// Disabled due to Station error in @pushchain/ui-kit
+// import { PushUniversalAccountButton } from '@pushchain/ui-kit';
 import { GiGamepad, GiTrophyCup, GiTargetArrows, GiCrossedSwords } from 'react-icons/gi';
-import { FaExternalLinkAlt, FaTimes } from 'react-icons/fa';
+import { FaExternalLinkAlt, FaTimes, FaWallet } from 'react-icons/fa';
 
 interface PushWalletState {
   walletAddress: string | null;
@@ -37,6 +38,10 @@ const PushWallet: React.FC<PushWalletProps> = ({ pushWallet }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const formatAddress = (address: string): string => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   if (!pushWallet) {
     return null;
   }
@@ -45,8 +50,46 @@ const PushWallet: React.FC<PushWalletProps> = ({ pushWallet }) => {
 
   return (
     <div className="push-wallet" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      {/* Push Chain UI Kit Account Button */}
-      <PushUniversalAccountButton />
+      {/* Custom Account Button (replaces PushUniversalAccountButton) */}
+      {pushWallet.isConnected ? (
+        <button
+          onClick={() => pushWallet.disconnectWallet()}
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '0.5rem 1rem',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontWeight: '600',
+            fontSize: '0.9rem'
+          }}
+        >
+          <FaWallet />
+          {formatAddress(pushWallet.walletAddress!)}
+        </button>
+      ) : (
+        <button
+          onClick={() => pushWallet.connectWallet()}
+          disabled={pushWallet.isConnecting}
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '0.5rem 1rem',
+            color: '#fff',
+            cursor: pushWallet.isConnecting ? 'not-allowed' : 'pointer',
+            opacity: pushWallet.isConnecting ? 0.7 : 1,
+            fontWeight: '600',
+            fontSize: '0.9rem'
+          }}
+        >
+          {pushWallet.isConnecting ? 'Connecting...' : 'Connect Wallet'}
+        </button>
+      )}
 
       {/* NFT Gallery Button (only when connected) */}
       {pushWallet.isConnected && nfts.length > 0 && (

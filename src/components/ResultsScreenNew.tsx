@@ -312,7 +312,7 @@ const ResultsScreenNew: React.FC<ResultsScreenProps> = ({
           </div>
         )}
 
-        {/* Multiplayer Transaction Links */}
+        {/* Multiplayer Transaction Link - Show only player's own transaction */}
         {multiplayerGameId && (
           <div className="multiplayer-tx-section" style={{
             marginTop: '1.5rem',
@@ -332,89 +332,83 @@ const ResultsScreenNew: React.FC<ResultsScreenProps> = ({
               letterSpacing: '0.15em',
               textShadow: '0 0 10px rgba(0, 255, 136, 0.3)'
             }}>
-              ARENA TRANSACTIONS
+              ON-CHAIN PROOF
             </h3>
             <div style={{
               display: 'flex',
-              flexDirection: 'column',
+              flexWrap: 'wrap',
               gap: '1rem',
+              justifyContent: 'center',
               alignItems: 'center'
             }}>
-              <p style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.6)', margin: 0 }}>
-                View on-chain proof of stakes on Push Explorer:
-              </p>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+
+              {/* Show Staking TX */}
+              <button
+                onClick={async () => {
+                  const game = await multiplayerService.getGame(multiplayerGameId);
+                  const playerAddress = pushWallet.walletAddress?.toLowerCase();
+
+                  if (!game) {
+                    alert('Game data not found');
+                    return;
+                  }
+
+                  // Determine if current player is creator (player1) or joiner (player2)
+                  const isCreator = game.player1_address?.toLowerCase() === playerAddress;
+                  const txHash = isCreator ? game.creation_tx_hash : game.join_tx_hash;
+
+                  if (txHash) {
+                    window.open(`https://donut.push.network/tx/${txHash}`, '_blank');
+                  } else {
+                    alert('Transaction hash not found');
+                  }
+                }}
+                className="btn-tx-view"
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  background: 'linear-gradient(135deg, rgba(155, 93, 229, 0.2), rgba(241, 91, 181, 0.2))',
+                  border: '2px solid #9B5DE5',
+                  borderRadius: '12px',
+                  color: '#FFFFFF',
+                  cursor: 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  transition: 'all 0.3s',
+                  textTransform: 'uppercase',
+                }}
+              >
+                View My Stake →
+              </button>
+
+              {/* Show Prize Payout TX (Only if Won) */}
+              {multiplayerResult === 'won' && (
                 <button
                   onClick={async () => {
                     const game = await multiplayerService.getGame(multiplayerGameId);
-                    if (game && game.creation_tx_hash) {
-                      window.open(`https://donut.push.network/tx/${game.creation_tx_hash}`, '_blank');
+                    if (game && game.finish_tx_hash) {
+                      window.open(`https://donut.push.network/tx/${game.finish_tx_hash}`, '_blank');
                     } else {
-                      alert('Staking transaction (Creator) not found in records');
+                      alert('Prize payout is processing... Please try again in part 10-20 seconds.');
                     }
                   }}
+                  className="btn-tx-view-prize"
                   style={{
-                    padding: '0.6rem 1.2rem',
-                    background: 'rgba(155, 93, 229, 0.15)',
-                    border: '1px solid #9B5DE5',
-                    borderRadius: '8px',
-                    color: '#9B5DE5',
+                    padding: '0.75rem 1.5rem',
+                    background: 'linear-gradient(135deg, rgba(0, 255, 136, 0.2), rgba(0, 217, 165, 0.2))',
+                    border: '2px solid #00FF88',
+                    borderRadius: '12px',
+                    color: '#FFFFFF',
                     cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    transition: 'all 0.3s',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(155, 93, 229, 0.3)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(155, 93, 229, 0.3)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(155, 93, 229, 0.15)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
+                    boxShadow: '0 0 15px rgba(0, 255, 136, 0.3)'
                   }}
                 >
-                  Creation TX →
+                  View Prize Payout 💰
                 </button>
-                <button
-                  onClick={async () => {
-                    const game = await multiplayerService.getGame(multiplayerGameId);
-                    if (game && game.join_tx_hash) {
-                      window.open(`https://donut.push.network/tx/${game.join_tx_hash}`, '_blank');
-                    } else {
-                      alert('Staking transaction (Joiner) not found in records');
-                    }
-                  }}
-                  style={{
-                    padding: '0.6rem 1.2rem',
-                    background: 'rgba(241, 91, 181, 0.15)',
-                    border: '1px solid #F15BB5',
-                    borderRadius: '8px',
-                    color: '#F15BB5',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = 'rgba(241, 91, 181, 0.3)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(241, 91, 181, 0.3)';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = 'rgba(241, 91, 181, 0.15)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  Join TX →
-                </button>
-              </div>
+              )}
             </div>
           </div>
         )}

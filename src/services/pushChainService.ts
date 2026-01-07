@@ -549,7 +549,7 @@ class PushChainService {
 }
 
 // Export singleton instance
-const pushChainService = new PushChainService();
+export const pushChainService = new PushChainService();
 export default pushChainService;
 
 // Export types

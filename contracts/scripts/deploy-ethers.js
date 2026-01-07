@@ -13,25 +13,48 @@ async function main() {
     const provider = new ethers.JsonRpcProvider(RPC_URL);
     const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
-    console.log("Checking balance for:", wallet.address);
+    console.log("📍 Deploying from:", wallet.address);
     const balance = await provider.getBalance(wallet.address);
-    console.log("Balance:", ethers.formatEther(balance), "PUSH");
-
-    const feeData = await provider.getFeeData();
-    console.log("Gas Price:", ethers.formatUnits(feeData.gasPrice, "gwei"), "gwei");
+    console.log("💰 Balance:", ethers.formatEther(balance), "PUSH\n");
 
     // Load ABI and Bytecode from Hardhat artifacts
     const artifact = require("../artifacts/contracts/MultiplayerEscrow.sol/MultiplayerEscrow.json");
     const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet);
 
-    console.log("Deploying MultiplayerEscrow...");
+    console.log("🚀 Deploying MultiplayerEscrow contract...");
     const escrow = await factory.deploy(wallet.address);
 
-    console.log("Wait for deployment...");
+    console.log("⏳ Waiting for deployment transaction to confirm...");
     await escrow.waitForDeployment();
 
     const address = await escrow.getAddress();
-    console.log("✅ MultiplayerEscrow deployed to:", address);
+
+    console.log("\n==================================================");
+    console.log("✅ DEPLOYMENT SUCCESSFUL!");
+    console.log("==================================================");
+    console.log("");
+    console.log("📝 Contract Address:");
+    console.log(address);
+    console.log("");
+    console.log("🔑 Oracle Address (deployer):");
+    console.log(wallet.address);
+    console.log("");
+    console.log("==================================================");
+    console.log("CONFIGURATION:");
+    console.log("==================================================");
+    console.log("");
+    console.log("Add to backend/.env:");
+    console.log(`ESCROW_CONTRACT_ADDRESS=${address}`);
+    console.log(`ORACLE_PRIVATE_KEY=${PRIVATE_KEY}`);
+    console.log("PUSH_RPC_URL=https://evm.donut.rpc.push.org/");
+    console.log("");
+    console.log("Add to .env.local:");
+    console.log(`NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS=${address}`);
+    console.log("");
+    console.log("==================================================");
 }
 
-main().catch(console.error);
+main().catch((error) => {
+    console.error("❌ Deployment failed:", error.message);
+    process.exit(1);
+});

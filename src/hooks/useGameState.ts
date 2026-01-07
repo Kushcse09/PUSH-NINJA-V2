@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { GameState, UseGameStateReturn } from '@/types/index';
 
 const getStorageItem = (key: string, defaultValue: number = 0): number => {
@@ -22,12 +22,12 @@ export const useGameState = (): UseGameStateReturn => {
     lives: 3,
     heartHealth: [100, 100, 100],
     maxHealth: 100,
-    bestScore: getStorageItem('fruitNinjaBestScore'),
-    bestScoreClassic: getStorageItem('bestScoreClassic'),
-    bestScoreArcade: getStorageItem('bestScoreArcade'),
-    bestScoreZen: getStorageItem('bestScoreZen'),
-    totalScore: getStorageItem('totalScore'),
-    gamesPlayed: getStorageItem('gamesPlayed'),
+    bestScore: 0,
+    bestScoreClassic: 0,
+    bestScoreArcade: 0,
+    bestScoreZen: 0,
+    totalScore: 0,
+    gamesPlayed: 0,
     isGameRunning: false,
     isPaused: false,
     isMultiplayer: false,
@@ -41,6 +41,19 @@ export const useGameState = (): UseGameStateReturn => {
     maxCombo: 0,
     lastSlashTime: 0,
   });
+
+  // Load scores from localStorage after hydration
+  useEffect(() => {
+    setGameState((prev) => ({
+      ...prev,
+      bestScore: getStorageItem('fruitNinjaBestScore'),
+      bestScoreClassic: getStorageItem('bestScoreClassic'),
+      bestScoreArcade: getStorageItem('bestScoreArcade'),
+      bestScoreZen: getStorageItem('bestScoreZen'),
+      totalScore: getStorageItem('totalScore'),
+      gamesPlayed: getStorageItem('gamesPlayed'),
+    }));
+  }, []);
 
   const startGame = useCallback(async (mode: 'classic' | 'arcade' | 'zen' = 'classic'): Promise<void> => {
     lastPenaltyTime.current = 0;
